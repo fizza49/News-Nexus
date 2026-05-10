@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "888831126131",
+    "project_id": "newsnexus-bee6c",
+    "storage_bucket": "newsnexus-bee6c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:888831126131:android:71eda139b9f217b5ac5806",
+        "android_client_info": {
+          "package_name": "com.example.new_nexus"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "888831126131-vsv7nbum4f0v3057kujgvgp3ikbljotn.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA4nNxBIBQqdl9yNge1aGSghtJTwuqXJuY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "888831126131-vsv7nbum4f0v3057kujgvgp3ikbljotn.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
