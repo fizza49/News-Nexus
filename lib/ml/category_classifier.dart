@@ -31,10 +31,9 @@ class CategoryResult {
 }
 
 class CategoryClassifier {
-  static const String _groqApiKey =
-      'put your Groq API key here (e.g. sk-xxxx) - get one at https://www.groq.com';
+  static const String _groqApiKey = 'your grok api key here';
   static const String _groqUrl =
-      'Put your Groq endpoint URL here (e.g. https://api.groq.com/v1/endpoint/your-endpoint-id/completions) ';
+      'https://api.groq.com/openai/v1/chat/completions';
   static const String _model = 'llama-3.3-70b-versatile';
 
   static const Map<String, String> _categoryEmojis = {
@@ -61,9 +60,10 @@ class CategoryClassifier {
   // In-memory cache
   static final Map<String, CategoryResult> _cache = {};
 
-  // Classify an article, fusing API category with LLM intelligence.
-  // [apiCategory] is the raw category string from NewsData.io (e.g. "top", "business")
-  // [language] is the article language code (e.g. "ur", "fr", "ar")
+  /// Classify an article, fusing API category with LLM intelligence.
+  ///
+  /// [apiCategory] is the raw category string from NewsData.io (e.g. "top", "business")
+  /// [language] is the article language code (e.g. "ur", "fr", "ar")
   static Future<CategoryResult> classify(
     String title,
     String description, {

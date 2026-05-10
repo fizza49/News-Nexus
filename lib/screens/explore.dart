@@ -33,7 +33,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
   // How many articles have finished LLM enrichment
   int _enrichedCount = 0;
-  bool _hasEnrichedBatch = false;
+
   String get _currentCountry => context.read<LocationProvider>().countryCode;
   String get _currentLanguage =>
       context.read<LocationProvider>().selectedLanguage;
@@ -65,7 +65,6 @@ class _ExploreScreenState extends State<ExploreScreen> {
     setState(() {
       _isLoading = true;
       _enrichedCount = 0;
-      _hasEnrichedBatch = false;
     });
 
     try {
@@ -87,9 +86,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
           _lastLoadedLanguage = lang;
           _isLoading = false;
         });
-        if (!_hasEnrichedBatch) {
-          _enrichArticles(data);
-        }
+        _enrichArticles(data);
       }
     } catch (e) {
       debugPrint('ExploreScreen ERROR: $e');
@@ -98,17 +95,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
   }
 
   void _enrichArticles(List<ArticleModel> articles) {
-    if (_hasEnrichedBatch) {
-      debugPrint('ExploreScreen: Batch already enriched, skipping enrichment');
-      return;
-    }
-    final maxArticles = articles.length > 5 ? 5 : articles.length;
-    final batch = articles.sublist(0, maxArticles);
-
-    debugPrint('ExploreScreen: Starting enrichment for $maxArticles articles');
-    _hasEnrichedBatch = true;
     // Process up to 10 articles, one at a time via GroqMLService queue
-    // final batch = articles.length > 10 ? articles.sublist(0, 5) : articles;
+    final batch = articles.length > 10 ? articles.sublist(0, 5) : articles;
     for (final article in batch) {
       if (!article.isEnriched) {
         article.enrichAsync(
@@ -132,42 +120,13 @@ class _ExploreScreenState extends State<ExploreScreen> {
   // This prevents "Simple" filter showing 0 results when enrichment hasn't run.
   // Political keywords for fallback matching (same list as GroqMLService)
   static const List<String> _politicsKeywords = [
-    'election',
-    'parliament',
-    'minister',
-    'president',
-    'prime minister',
-    'government',
-    'senate',
-    'congress',
-    'vote',
-    'party',
-    'political',
-    'diplomat',
-    'treaty',
-    'legislation',
-    'bill',
-    'policy',
-    'انتخاب',
-    'حکومت',
-    'وزیر',
-    'پارلیمان',
-    'سیاست',
-    'سياسة',
-    'حكومة',
-    'انتخابات',
-    'وزير',
-    'برلمان',
-    'siyaset',
-    'hükümet',
-    'seçim',
-    'meclis',
-    'bakan',
-    'चुनाव',
-    'सरकार',
-    'संसद',
-    'मंत्री',
-    'राजनीति',
+    'election', 'parliament', 'minister', 'president', 'prime minister',
+    'government', 'senate', 'congress', 'vote', 'party', 'political',
+    'diplomat', 'treaty', 'legislation', 'bill', 'policy',
+    'انتخاب', 'حکومت', 'وزیر', 'پارلیمان', 'سیاست',
+    'سياسة', 'حكومة', 'انتخابات', 'وزير', 'برلمان',
+    'siyaset', 'hükümet', 'seçim', 'meclis', 'bakan',
+    'चुनाव', 'सरकार', 'संसद', 'मंत्री', 'राजनीति',
   ];
 
   bool _isPoliticsArticle(ArticleModel a) {
@@ -187,9 +146,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
     } else if (_readabilityFilter != null) {
       // Only enriched articles have real readability data
       list = list
-          .where(
-            (a) => a.isEnriched && a.readability.level == _readabilityFilter,
-          )
+          .where((a) => a.isEnriched && a.readability.level == _readabilityFilter)
           .toList();
     }
 
@@ -204,7 +161,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
     return (batchSize - _enrichedCount).clamp(0, batchSize);
   }
 
-  // Country picker bottom sheet with location detection and country list
+  // ── Country Picker ───────────────────────────────────────────────────────
   void _showCountryPicker() {
     showModalBottomSheet(
       context: context,
@@ -240,10 +197,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                   controller: controller,
                   children: [
                     ListTile(
-                      leading: const Icon(
-                        Icons.my_location,
-                        color: Color(0xFF2563EB),
-                      ),
+                      leading: const Icon(Icons.my_location, color: Color(0xFF2563EB)),
                       title: const Text('Detect my location'),
                       onTap: () async {
                         Navigator.pop(context);
@@ -264,9 +218,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                             : null,
                         onTap: () async {
                           Navigator.pop(context);
-                          await context.read<LocationProvider>().changeCountry(
-                            entry.key,
-                          );
+                          await context.read<LocationProvider>().changeCountry(entry.key);
                         },
                       );
                     }),
@@ -300,12 +252,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
             DropdownButtonFormField<String>(
               initialValue: selectedCategory,
               items: NewsService.examCategories
-                  .map(
-                    (cat) => DropdownMenuItem(
-                      value: cat,
-                      child: Text(_categoryLabel(cat)),
-                    ),
-                  )
+                  .map((cat) => DropdownMenuItem(
+                        value: cat,
+                        child: Text(_categoryLabel(cat)),
+                      ))
                   .toList(),
               onChanged: (value) => selectedCategory = value!,
               decoration: const InputDecoration(labelText: 'Category'),
@@ -323,24 +273,20 @@ class _ExploreScreenState extends State<ExploreScreen> {
               setState(() => _isLoading = true);
               if (query.isNotEmpty) {
                 _newsService
-                    .searchArticles(
-                      query,
-                      country: _currentCountry,
-                      lang: _currentLanguage,
-                    )
+                    .searchArticles(query,
+                        country: _currentCountry, lang: _currentLanguage)
                     .then((results) {
-                      if (mounted) {
-                        setState(() {
-                          _articles = results;
-                          _isLoading = false;
-                          _enrichedCount = 0;
-                        });
-                        _enrichArticles(results);
-                      }
-                    })
-                    .catchError((e) {
-                      if (mounted) setState(() => _isLoading = false);
+                  if (mounted) {
+                    setState(() {
+                      _articles = results;
+                      _isLoading = false;
+                      _enrichedCount = 0;
                     });
+                    _enrichArticles(results);
+                  }
+                }).catchError((e) {
+                  if (mounted) setState(() => _isLoading = false);
+                });
               } else {
                 _loadNews(category: selectedCategory);
               }
@@ -385,8 +331,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
   Widget build(BuildContext context) {
     final locationProvider = context.watch<LocationProvider>();
     final country = locationProvider.countryCode;
-    final countryName =
-        NewsService.getCountryName(country) ?? country.toUpperCase();
+    final countryName = NewsService.getCountryName(country) ?? country.toUpperCase();
     final countryLabel = countryName.split(' ').first;
     final filtered = _filteredArticles;
 
@@ -395,10 +340,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 1,
-        title: const Text(
-          'Explore',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
+        title: const Text('Explore',
+            style: TextStyle(fontWeight: FontWeight.bold)),
         actions: [
           GestureDetector(
             onTap: _showCountryPicker,
@@ -422,11 +365,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
                       color: Color(0xFF2563EB),
                     ),
                   ),
-                  const Icon(
-                    Icons.arrow_drop_down,
-                    size: 16,
-                    color: Color(0xFF2563EB),
-                  ),
+                  const Icon(Icons.arrow_drop_down,
+                      size: 16, color: Color(0xFF2563EB)),
                 ],
               ),
             ),
@@ -444,9 +384,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(30),
-                boxShadow: const [
-                  BoxShadow(color: Colors.black12, blurRadius: 5),
-                ],
+                boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 5)],
               ),
               child: Row(
                 children: [
@@ -459,10 +397,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
                       color: const Color(0xFF2563EB).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
@@ -508,9 +443,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 8,
-                      ),
+                          horizontal: 14, vertical: 8),
                       decoration: BoxDecoration(
                         color: isSelected
                             ? const Color(0xFF7C3AED)
@@ -544,9 +477,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 200),
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 8,
-                    ),
+                        horizontal: 14, vertical: 8),
                     decoration: BoxDecoration(
                       color: isSelected
                           ? const Color(0xFF2563EB)
@@ -582,11 +513,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
               children: [
                 Row(
                   children: [
-                    const Icon(
-                      Icons.psychology,
-                      size: 13,
-                      color: Color(0xFF2563EB),
-                    ),
+                    const Icon(Icons.psychology,
+                        size: 13, color: Color(0xFF2563EB)),
                     const SizedBox(width: 4),
                     const Text(
                       'AI Difficulty Filter',
@@ -610,7 +538,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
                       const SizedBox(width: 4),
                       Text(
                         'Analysing $_pendingCount...',
-                        style: TextStyle(fontSize: 10, color: Colors.grey[500]),
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: Colors.grey[500],
+                        ),
                       ),
                     ],
                   ],
@@ -622,8 +553,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                     children: [
                       _ReadabilityChip(
                         label: '📰 All',
-                        selected:
-                            _readabilityFilter == null && !_politicsFilter,
+                        selected: _readabilityFilter == null && !_politicsFilter,
                         color: Colors.blueGrey,
                         onTap: () => setState(() {
                           _readabilityFilter = null;
@@ -639,8 +569,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
                           _politicsFilter = false;
                           _readabilityFilter =
                               _readabilityFilter == ReadingLevel.simple
-                              ? null
-                              : ReadingLevel.simple;
+                                  ? null
+                                  : ReadingLevel.simple;
                         }),
                       ),
                       const SizedBox(width: 8),
@@ -652,8 +582,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
                           _politicsFilter = false;
                           _readabilityFilter =
                               _readabilityFilter == ReadingLevel.moderate
-                              ? null
-                              : ReadingLevel.moderate;
+                                  ? null
+                                  : ReadingLevel.moderate;
                         }),
                       ),
                       const SizedBox(width: 8),
@@ -665,8 +595,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
                           _politicsFilter = false;
                           _readabilityFilter =
                               _readabilityFilter == ReadingLevel.advanced
-                              ? null
-                              : ReadingLevel.advanced;
+                                  ? null
+                                  : ReadingLevel.advanced;
                         }),
                       ),
                     ],
@@ -745,10 +675,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
           children: [
             const Icon(Icons.article_outlined, size: 60, color: Colors.grey),
             const SizedBox(height: 12),
-            const Text(
-              'No articles found',
-              style: TextStyle(color: Colors.grey),
-            ),
+            const Text('No articles found', style: TextStyle(color: Colors.grey)),
           ],
         ),
       );
@@ -882,9 +809,8 @@ class _ArticleCardState extends State<_ArticleCard> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     } finally {
       if (mounted) setState(() => _bookmarkLoading = false);
@@ -895,20 +821,16 @@ class _ArticleCardState extends State<_ArticleCard> {
     if (url.isEmpty) return;
     final uri = Uri.parse(url);
     try {
-      final launched = await launchUrl(
-        uri,
-        mode: LaunchMode.externalApplication,
-      );
+      final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
       if (!launched && mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Could not open article')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not open article')),
+        );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     }
   }
@@ -933,9 +855,8 @@ class _ArticleCardState extends State<_ArticleCard> {
               height: 180,
               width: double.infinity,
               child: ClipRRect(
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(15),
-                ),
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(15)),
                 child: widget.buildImage(
                   article.urlToImage.isNotEmpty ? article.urlToImage : null,
                 ),
@@ -964,13 +885,15 @@ class _ArticleCardState extends State<_ArticleCard> {
                   if (article.description.isNotEmpty)
                     Text(
                       article.description,
-                      style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                      style:
+                          TextStyle(color: Colors.grey[600], fontSize: 13),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
 
                   const SizedBox(height: 8),
 
+                  // ── ML Badges — use Wrap to prevent overflow ───────────
                   if (!enriched)
                     // Show shimmer/loading state while LLM is working
                     Row(
@@ -986,10 +909,8 @@ class _ArticleCardState extends State<_ArticleCard> {
                         const SizedBox(width: 6),
                         Text(
                           'Analysing...',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: Colors.grey[400],
-                          ),
+                          style:
+                              TextStyle(fontSize: 11, color: Colors.grey[400]),
                         ),
                       ],
                     )
@@ -1028,9 +949,7 @@ class _ArticleCardState extends State<_ArticleCard> {
                         child: Text(
                           article.source,
                           style: const TextStyle(
-                            fontWeight: FontWeight.w500,
-                            fontSize: 12,
-                          ),
+                              fontWeight: FontWeight.w500, fontSize: 12),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
@@ -1041,9 +960,7 @@ class _ArticleCardState extends State<_ArticleCard> {
                                 ? article.publishedAt.substring(0, 10)
                                 : article.publishedAt,
                             style: TextStyle(
-                              color: Colors.grey[500],
-                              fontSize: 11,
-                            ),
+                                color: Colors.grey[500], fontSize: 11),
                           ),
                           _bookmarkLoading
                               ? const SizedBox(
@@ -1052,8 +969,7 @@ class _ArticleCardState extends State<_ArticleCard> {
                                   child: Padding(
                                     padding: EdgeInsets.all(4),
                                     child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
+                                        strokeWidth: 2),
                                   ),
                                 )
                               : IconButton(

@@ -34,8 +34,7 @@ class ReadabilityResult {
 }
 
 class ReadabilityScorer {
-  static const String _groqApiKey =
-      'your Groq API key here (e.g. sk-xxxx) - get one at https://www.groq.com  ';
+  static const String _groqApiKey = 'your grok api key here';
   static const String _groqUrl =
       'https://api.groq.com/openai/v1/chat/completions';
   static const String _model = 'llama-3.3-70b-versatile';
@@ -197,9 +196,10 @@ advanced=technical/specialized, complex grammar (flesch 0-29)''';
         emoji = '🟡';
     }
 
-    // Reading Time Estimation:
+    // ── Realistic reading time ───────────────────────────────────────────
     // We only have title+description (~30-60 words).
-    // Use the average full article length for this language instead
+    // Use the average full article length for this language instead,
+    // so we don't show "<1m" for everything.
     final avgWords = _avgArticleWords[language] ?? 600;
     final wpm = _langWpm[language] ?? 200;
     final adjustedWpm = level == ReadingLevel.simple

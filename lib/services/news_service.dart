@@ -3,18 +3,15 @@ import 'package:http/http.dart' as http;
 import '../models/article_model.dart';
 
 class NewsService {
-  static const String _apiKey =
-      'get your api key from newsdata.io and put it here';
+  static const String _apiKey = 'pub_3437813a9a6746fabcf6e19630ee41f9';
   static const String _baseUrl = 'https://newsdata.io/api/1';
 
   // Cache
   static List<ArticleModel>? _cachedHeadlines;
-  static String? _cachedHeadlinesKey;
+  static String? _cachedHeadlinesKey; // FIX: was only country, now country+lang
   static final Map<String, List<ArticleModel>> _categoryCache = {};
   static final Map<String, List<ArticleModel>> _searchCache = {};
   static DateTime? _lastFetched;
-
-  static final Map<String, Future<List<ArticleModel>>> _pendingRequests = {};
 
   static const Duration _cacheDuration = Duration(minutes: 30);
 
@@ -28,7 +25,6 @@ class NewsService {
     _categoryCache.clear();
     _searchCache.clear();
     _lastFetched = null;
-    _pendingRequests.clear();
   }
 
   // NewsData.io supported categories
@@ -149,20 +145,7 @@ class NewsService {
   static const Map<String, List<String>> languagesByCountry = {
     'us': ['en'],
     'gb': ['en'],
-    'in': [
-      'en',
-      'hi',
-      'bn',
-      'pa',
-      'ta',
-      'te',
-      'ml',
-      'kn',
-      'gu',
-      'mr',
-      'as',
-      'or',
-    ],
+    'in': ['en', 'hi', 'bn', 'pa', 'ta', 'te', 'ml', 'kn', 'gu', 'mr', 'as', 'or'],
     'pk': ['en', 'ur', 'pa'],
     'au': ['en'],
     'ca': ['en', 'fr'],
@@ -194,44 +177,22 @@ class NewsService {
   static List<String> getLanguagesForCountry(String countryCode) =>
       languagesByCountry[countryCode] ?? ['en'];
 
-  /// Fetch top headlines with request deduplication
-  /// Returns cached headlines if available and not expired
-  /// Prevents multiple simultaneous API calls for the same parameters
+  // FIX: Cache key now includes language so switching language triggers refetch
   Future<List<ArticleModel>> fetchTopHeadlines({
     String country = 'us',
     String lang = 'en',
   }) async {
-    final cacheKey = '${country}_$lang';
+    final cacheKey = '${country}_$lang'; // FIX: was only country before
 
-    // Check cache first
     if (_cachedHeadlines != null &&
         !_cacheExpired &&
         _cachedHeadlinesKey == cacheKey) {
       print('DEBUG: Returning cached headlines for $cacheKey');
       return _cachedHeadlines!;
     }
-    final requestKey = 'headlines_$cacheKey';
-    if (_pendingRequests.containsKey(requestKey)) {
-      print('DEBUG: Returning pending request for $requestKey');
-      return _pendingRequests[requestKey]!;
-    }
 
-    final future = _fetchTopHeadlinesInternal(country, lang);
-    _pendingRequests[requestKey] = future;
+    print('DEBUG: Fetching fresh top headlines for country=$country, language=$lang');
 
-    try {
-      final result = await future;
-      return result;
-    } finally {
-      _pendingRequests.remove(requestKey);
-    }
-  }
-
-  /// Internal method for fetching top headlines
-  Future<List<ArticleModel>> _fetchTopHeadlinesInternal(
-    String country,
-    String lang,
-  ) async {
     final url = Uri.parse(
       '$_baseUrl/latest?apikey=$_apiKey&country=$country&language=$lang',
     );
@@ -242,29 +203,25 @@ class NewsService {
     if (response.statusCode == 200 && data['status'] == 'success') {
       final List results = data['results'] ?? [];
       final result = results
-          .where(
-            (a) =>
-                a['title'] != null && (a['title'] as String).trim().isNotEmpty,
-          )
+          .where((a) =>
+              a['title'] != null && (a['title'] as String).trim().isNotEmpty)
           .map((a) => ArticleModel.fromJson(a, language: lang))
           .toList();
 
+      // _enrichInBackground(result);
+
       _cachedHeadlines = result;
-      _cachedHeadlinesKey = '${country}_$lang';
+      _cachedHeadlinesKey = cacheKey; // FIX: store combined key
       _lastFetched = DateTime.now();
       return result;
     } else {
-      final msg =
-          data['results']?['message'] ??
+      final msg = data['results']?['message'] ??
           data['message'] ??
           'Failed to load news (${response.statusCode})';
       throw Exception(msg);
     }
   }
 
-  /// Fetch articles by category with request deduplication
-  /// Returns cached articles if available and not expired
-  /// Prevents multiple simultaneous API calls for the same parameters
   Future<List<ArticleModel>> fetchByCategory({
     String category = 'top',
     String country = 'us',
@@ -272,38 +229,13 @@ class NewsService {
   }) async {
     final cacheKey = '${country}_${category}_$lang';
 
-    // Check cache first
     if (!_cacheExpired && _categoryCache.containsKey(cacheKey)) {
       print('DEBUG: Returning cached $cacheKey');
       return _categoryCache[cacheKey]!;
     }
 
-    // FIX: If a request is already pending for this key, return that future
-    final requestKey = 'category_$cacheKey';
-    if (_pendingRequests.containsKey(requestKey)) {
-      print('DEBUG: Returning pending request for $requestKey');
-      return _pendingRequests[requestKey]!;
-    }
-
     print('DEBUG: Fetching $category for country=$country, language=$lang');
 
-    final future = _fetchByCategoryInternal(category, country, lang);
-    _pendingRequests[requestKey] = future;
-
-    try {
-      final result = await future;
-      return result;
-    } finally {
-      _pendingRequests.remove(requestKey);
-    }
-  }
-
-  /// Internal method for fetching by category
-  Future<List<ArticleModel>> _fetchByCategoryInternal(
-    String category,
-    String country,
-    String lang,
-  ) async {
     final url = Uri.parse(
       '$_baseUrl/latest?apikey=$_apiKey&category=$category&country=$country&language=$lang',
     );
@@ -314,23 +246,18 @@ class NewsService {
     if (response.statusCode == 200 && data['status'] == 'success') {
       final List results = data['results'] ?? [];
       final result = results
-          .where(
-            (a) =>
-                a['title'] != null && (a['title'] as String).trim().isNotEmpty,
-          )
-          .map(
-            (a) => ArticleModel.fromJson(a, category: category, language: lang),
-          )
+          .where((a) =>
+              a['title'] != null && (a['title'] as String).trim().isNotEmpty)
+          .map((a) => ArticleModel.fromJson(a, category: category, language: lang))
           .toList();
 
       _enrichInBackground(result);
 
-      _categoryCache['${country}_${category}_$lang'] = result;
+      _categoryCache[cacheKey] = result;
       _lastFetched = DateTime.now();
       return result;
     } else {
-      final msg =
-          data['results']?['message'] ??
+      final msg = data['results']?['message'] ??
           data['message'] ??
           'Category fetch failed (${response.statusCode})';
       throw Exception(msg);
@@ -348,49 +275,21 @@ class NewsService {
       return _searchCache[cacheKey]!;
     }
 
-    // FIX: Add request deduplication for search as well
-    final requestKey = 'search_$cacheKey';
-    if (_pendingRequests.containsKey(requestKey)) {
-      print('DEBUG: Returning pending search request for $requestKey');
-      return _pendingRequests[requestKey]!;
-    }
-
-    final future = _searchArticlesInternal(query, lang, country, cacheKey);
-    _pendingRequests[requestKey] = future;
-
-    try {
-      final result = await future;
-      return result;
-    } finally {
-      _pendingRequests.remove(requestKey);
-    }
-  }
-
-  /// Internal method for searching articles
-  Future<List<ArticleModel>> _searchArticlesInternal(
-    String query,
-    String lang,
-    String? country,
-    String cacheKey,
-  ) async {
     String urlStr =
         '$_baseUrl/latest?apikey=$_apiKey&q=${Uri.encodeComponent(query)}&language=$lang';
     if (country != null && country.isNotEmpty) {
       urlStr += '&country=$country';
     }
 
-    final response = await http
-        .get(Uri.parse(urlStr))
-        .timeout(const Duration(seconds: 15));
+    final response =
+        await http.get(Uri.parse(urlStr)).timeout(const Duration(seconds: 15));
     final data = json.decode(response.body);
 
     if (response.statusCode == 200 && data['status'] == 'success') {
       final List results = data['results'] ?? [];
       final result = results
-          .where(
-            (a) =>
-                a['title'] != null && (a['title'] as String).trim().isNotEmpty,
-          )
+          .where((a) =>
+              a['title'] != null && (a['title'] as String).trim().isNotEmpty)
           .map((a) => ArticleModel.fromJson(a, language: lang))
           .toList();
 
@@ -414,10 +313,7 @@ class NewsService {
   static List<String> getAllLanguageCodes() => supportedLanguages.keys.toList();
 
   static void _enrichInBackground(List<ArticleModel> articles) {
-    // Limit to first 5 articles for enrichment
-    final maxArticles = articles.length > 5 ? 5 : articles.length;
-    final batch = articles.sublist(0, maxArticles);
-
+    final batch = articles.length > 10 ? articles.sublist(0, 5) : articles;
     for (final article in batch) {
       article.enrichAsync();
     }

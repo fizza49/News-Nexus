@@ -25,8 +25,8 @@ class SentimentResult {
 }
 
 class SentimentAnalyzer {
-  static const String _groqApiKey =
-      'your Groq API key here  get one at https://www.groq.com  ';
+  // 🔑 Get a free key at console.groq.com — paste it here
+  static const String _groqApiKey = 'your grok api key here';
   static const String _groqUrl =
       'https://api.groq.com/openai/v1/chat/completions';
   static const String _model = 'llama-3.3-70b-versatile';

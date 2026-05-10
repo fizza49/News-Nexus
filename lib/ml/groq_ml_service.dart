@@ -25,16 +25,14 @@ class GroqMLResult {
 }
 
 class GroqMLService {
-  static const String _groqApiKey =
-      'put your Groq API key here (e.g. sk-xxxx) - get one at https://www.groq.com';
+  static const String _groqApiKey = 'your grok api key here';
   static const String _groqUrl =
-      'Put your Groq endpoint URL here (e.g. https://api.groq.com/v1/endpoint/your-endpoint-id/completions) ';
+      'https://api.groq.com/openai/v1/chat/completions';
 
-  // FIX: llama-3.3-70b-versatile follows strict JSON far better than gemma2-9b-it
-  static const String _model = 'llama-3.3-70b-versatile';
+  // llama-3.1-8b-instant = much faster than 70b, still accurate for simple JSON tasks
+  static const String _model = 'llama-3.1-8b-instant';
 
   static final Map<String, GroqMLResult> _cache = {};
-
   static final _queue = <_QueueEntry>[];
   static bool _draining = false;
 
@@ -60,6 +58,7 @@ class GroqMLService {
     'id': 500,
     'ms': 500,
   };
+
   static const Map<String, double> _langWpm = {
     'en': 238,
     'de': 220,
@@ -85,6 +84,7 @@ class GroqMLService {
     'ms': 200,
     'tr': 180,
   };
+
   static const Map<String, String> _categoryEmojis = {
     'politics': '🏛️',
     'technology': '💻',
@@ -95,6 +95,7 @@ class GroqMLService {
     'entertainment': '🎬',
     'general': '📰',
   };
+
   static const Set<String> _trustedApiCategories = {
     'science',
     'technology',
@@ -104,15 +105,139 @@ class GroqMLService {
     'entertainment',
   };
 
-  // Political keywords for fallback detection when LLM is unavailable
   static const List<String> _politicsKeywords = [
-    'election', 'parliament', 'minister', 'president', 'prime minister',
-    'government', 'senate', 'congress', 'vote', 'party', 'political',
-    'diplomat', 'treaty', 'legislation', 'bill', 'law', 'policy',
-    'انتخاب', 'حکومت', 'وزیر', 'پارلیمان', 'سیاست', // Urdu
-    'سياسة', 'حكومة', 'انتخابات', 'وزير', 'برلمان', // Arabic
-    'siyaset', 'hükümet', 'seçim', 'meclis', 'bakan', // Turkish
-    'चुनाव', 'सरकार', 'संसद', 'मंत्री', 'राजनीति', // Hindi
+    'election',
+    'parliament',
+    'minister',
+    'president',
+    'prime minister',
+    'government',
+    'senate',
+    'congress',
+    'vote',
+    'party',
+    'political',
+    'diplomat',
+    'treaty',
+    'legislation',
+    'bill',
+    'law',
+    'policy',
+    'انتخاب',
+    'حکومت',
+    'وزیر',
+    'پارلیمان',
+    'سیاست',
+    'سياسة',
+    'حكومة',
+    'انتخابات',
+    'وزير',
+    'برلمان',
+    'siyaset',
+    'hükümet',
+    'seçim',
+    'meclis',
+    'bakan',
+    'चुनाव',
+    'सरकार',
+    'संसद',
+    'मंत्री',
+    'राजनीति',
+  ];
+
+  static const List<String> _negativeKeywords = [
+    'war',
+    'kill',
+    'killed',
+    'dead',
+    'death',
+    'deaths',
+    'attack',
+    'attacked',
+    'crash',
+    'crisis',
+    'flood',
+    'fire',
+    'murder',
+    'bomb',
+    'bombing',
+    'disaster',
+    'protest',
+    'riot',
+    'arrested',
+    'corruption',
+    'scandal',
+    'explosion',
+    'shooting',
+    'violence',
+    'collapse',
+    'ban',
+    'sanction',
+    'earthquake',
+    'hurricane',
+    'drought',
+    'famine',
+    'poverty',
+    'conflict',
+    'hostage',
+    'terror',
+    'terrorist',
+    'massacre',
+    'genocide',
+    'coup',
+    'قتل',
+    'موت',
+    'حادثہ',
+    'دہشت',
+    'سیلاب',
+    'آگ',
+    'لڑائی',
+    'مقتول',
+    'ہلاک',
+    'تباہی',
+    'بم',
+    'دھماکہ',
+    'احتجاج',
+  ];
+
+  static const List<String> _positiveKeywords = [
+    'win',
+    'won',
+    'winner',
+    'success',
+    'growth',
+    'award',
+    'launch',
+    'record',
+    'achieve',
+    'achievement',
+    'peace',
+    'deal',
+    'breakthrough',
+    'recover',
+    'recovery',
+    'improve',
+    'improvement',
+    'rise',
+    'gain',
+    'celebrate',
+    'celebration',
+    'relief',
+    'rescue',
+    'saved',
+    'progress',
+    'innovation',
+    'discovery',
+    'cure',
+    'vaccine',
+    'historic',
+    'milestone',
+    'کامیاب',
+    'ترقی',
+    'فتح',
+    'کامیابی',
+    'انعام',
+    'امن',
   ];
 
   static Future<GroqMLResult> analyze(
@@ -141,9 +266,8 @@ class GroqMLService {
     _draining = true;
     while (_queue.isNotEmpty) {
       final entry = _queue.removeAt(0);
-      GroqMLResult result;
       try {
-        result = await _callGroq(
+        final result = await _callGroq(
           entry.title,
           entry.description,
           entry.apiCategory,
@@ -151,27 +275,27 @@ class GroqMLService {
         );
         _cache[entry.cacheKey] = result;
         entry.completer.complete(result);
-      } on _RateLimitException catch (e) {
-        // Re-insert at front and pause the whole drain loop for the
-        // duration Groq requested.  Previously each call retried itself
-        // recursively, so N articles in-flight produced N independent
-        // back-off loops that all fired simultaneously → another 429 wave.
-        debugPrint('[GroqMLService] Rate limit, waiting ${e.waitMs}ms');
-        _queue.insert(0, entry);
-        await Future.delayed(Duration(milliseconds: e.waitMs));
-        continue;
       } catch (e) {
-        debugPrint('[GroqMLService] "${_short(entry.title)}": $e');
-        result = _smartFallback(
-          entry.title,
-          entry.description,
-          entry.apiCategory,
-          entry.language,
-        );
-        _cache[entry.cacheKey] = result;
-        entry.completer.complete(result);
+        final msg = e.toString();
+        if (msg.contains('rate_limit_retry') && entry.retries < 2) {
+          entry.retries++;
+          _queue.insert(0, entry); // retry at front of queue
+        } else {
+          debugPrint(
+            '[GroqMLService] Giving up on "${_short(entry.title)}": $e',
+          );
+          final result = _smartFallback(
+            entry.title,
+            entry.description,
+            entry.apiCategory,
+            entry.language,
+          );
+          _cache[entry.cacheKey] = result;
+          entry.completer.complete(result);
+        }
       }
       if (_queue.isNotEmpty) {
+        // 700ms between calls — fast enough, within Groq free tier
         await Future.delayed(const Duration(milliseconds: 700));
       }
     }
@@ -186,20 +310,10 @@ class GroqMLService {
   ) async {
     final trusted = _trustedApiCategories.contains(apiCategory.toLowerCase());
 
-    final prompt =
-        '''Analyze this news article. Language code: $language.
-Title: $title
-Description: $description
-
-Reply with ONLY a JSON object (no markdown, no text before or after):
-{"sentiment":"positive","score":0.7,"readability":"simple"${trusted ? '' : ',"category":"politics"'}}
-
-Strict rules:
-- sentiment: "negative"=war/crisis/disaster/death/scandal/corruption/protest, "positive"=achievement/growth/award/peace/breakthrough/success, "neutral"=routine/informational/factual
-- score: number from -1.0 to +1.0. Negative sentiment MUST have negative score (e.g. -0.6). Positive MUST have positive score (e.g. +0.7). Neutral near 0.
-- readability: "simple"=everyday language most people understand easily, "advanced"=technical/legal/scientific vocabulary, "moderate"=some specialized terms but generally accessible
-${trusted ? '' : '- category: "politics" for elections/voting/government/parliament/ministers/president/prime minister/foreign policy/diplomacy/coup/legislation — IMPORTANT: news API never tags these as politics, you must detect it\n'}
-Important: Most news is NOT neutral — war is negative, economic growth is positive, elections can be either. Be decisive.''';
+    // Shorter prompt = faster response (fewer tokens to process)
+    final prompt = trusted
+        ? 'News title: $title\nDesc: $description\n\nRespond ONLY with JSON, no extra text:\n{"sentiment":"positive","score":0.7,"readability":"simple"}\nsentiment=negative/positive/neutral, score=-1.0 to 1.0, readability=simple/moderate/advanced. War/death/crisis=negative. Growth/win/peace=positive.'
+        : 'News title: $title\nDesc: $description\n\nRespond ONLY with JSON, no extra text:\n{"sentiment":"positive","score":0.7,"readability":"simple","category":"politics"}\nsentiment=negative/positive/neutral, score=-1.0 to 1.0, readability=simple/moderate/advanced, category=politics/general. War/death/crisis=negative. Growth/win/peace=positive. Detect politics: election/government/minister/parliament/vote.';
 
     final response = await http
         .post(
@@ -213,23 +327,22 @@ Important: Most news is NOT neutral — war is negative, economic growth is posi
             'messages': [
               {'role': 'user', 'content': prompt},
             ],
-            'max_tokens': 80,
-            'temperature': 0.15,
+            'max_tokens': 60, // reduced from 80 — we only need ~50 tokens
+            'temperature': 0.1, // lower = more consistent, faster
           }),
         )
-        .timeout(const Duration(seconds: 15));
+        .timeout(const Duration(seconds: 10)); // reduced from 15s
 
     if (response.statusCode == 429) {
       final body = jsonDecode(response.body);
       final msg = body['error']?['message'] as String? ?? '';
       final match = RegExp(r'([0-9.]+)s').firstMatch(msg);
-      final waitMs =
-          ((double.tryParse(match?.group(1) ?? '3') ?? 3.0) * 1000 + 500)
-              .toInt();
-      // Throw a typed exception so _drain can back off globally,
-      // instead of each request retrying independently (which causes the
-      // cascade of repeated 429s you see in the logs).
-      throw _RateLimitException(waitMs);
+      final waitMs = ((double.tryParse(match?.group(1) ?? '5') ?? 5.0) * 1000)
+          .toInt()
+          .clamp(2000, 8000); // wait between 2s and 8s max
+      debugPrint('[GroqMLService] Rate limit, waiting ${waitMs}ms');
+      await Future.delayed(Duration(milliseconds: waitMs));
+      throw Exception('rate_limit_retry');
     }
 
     if (response.statusCode != 200) {
@@ -241,7 +354,6 @@ Important: Most news is NOT neutral — war is negative, economic growth is posi
         (data['choices'] as List?)?.first?['message']?['content'] as String? ??
         '{}';
 
-    // FIX: Extract JSON by finding first { to last } — handles any surrounding text
     final cleaned = _extractJson(raw);
 
     Map<String, dynamic> parsed;
@@ -251,6 +363,7 @@ Important: Most news is NOT neutral — war is negative, economic growth is posi
       throw Exception('Bad JSON: $cleaned');
     }
 
+    // --- Sentiment ---
     final sentStr = (parsed['sentiment'] as String? ?? 'neutral')
         .toLowerCase()
         .trim();
@@ -281,7 +394,7 @@ Important: Most news is NOT neutral — war is negative, economic growth is posi
       );
     }
 
-    // Category
+    // --- Category ---
     String cat = trusted
         ? apiCategory.toLowerCase()
         : (parsed['category'] as String? ?? 'general').toLowerCase().trim();
@@ -293,7 +406,7 @@ Important: Most news is NOT neutral — war is negative, economic growth is posi
       fromLLM: !trusted,
     );
 
-    // FIX: Readability with meaningfully different reading times per level
+    // --- Readability ---
     final levelStr = (parsed['readability'] as String? ?? 'moderate')
         .toLowerCase()
         .trim();
@@ -304,14 +417,13 @@ Important: Most news is NOT neutral — war is negative, economic growth is posi
     };
     final avgWords = _avgArticleWords[language] ?? 600;
     final wpm = _langWpm[language] ?? 200;
-    // Different multipliers give visibly different times:
-    // simple=fast reader speed, moderate=0.75x, advanced=0.55x
     final adjWpm = level == ReadingLevel.simple
         ? wpm * 1.0
         : level == ReadingLevel.moderate
         ? wpm * 0.75
         : wpm * 0.55;
     final readSec = ((avgWords / adjWpm) * 60).clamp(60.0, 1800.0).round();
+
     final readability = ReadabilityResult(
       level: level,
       label: lLabel,
@@ -340,8 +452,7 @@ Important: Most news is NOT neutral — war is negative, economic growth is posi
     return raw.replaceAll(RegExp(r'```[a-z]*\n?|```'), '').trim();
   }
 
-  /// Smart fallback: use keyword matching for politics detection
-  /// so the politics filter still works even when Groq fails.
+  /// Keyword-based fallback — gives real sentiment/category without Groq
   static GroqMLResult _smartFallback(
     String title,
     String description,
@@ -351,39 +462,86 @@ Important: Most news is NOT neutral — war is negative, economic growth is posi
     final combined = '${title.toLowerCase()} ${description.toLowerCase()}';
     final trusted = _trustedApiCategories.contains(apiCategory.toLowerCase());
 
+    // Sentiment via keywords
+    final isNegative = _negativeKeywords.any((kw) => combined.contains(kw));
+    final isPositive =
+        !isNegative && _positiveKeywords.any((kw) => combined.contains(kw));
+
+    final sentiment = isNegative
+        ? SentimentResult(
+            sentiment: Sentiment.negative,
+            score: -0.5,
+            label: 'Negative',
+            emoji: '😟',
+          )
+        : isPositive
+        ? SentimentResult(
+            sentiment: Sentiment.positive,
+            score: 0.5,
+            label: 'Positive',
+            emoji: '😊',
+          )
+        : SentimentResult(
+            sentiment: Sentiment.neutral,
+            score: 0.0,
+            label: 'Neutral',
+            emoji: '😐',
+          );
+
+    // Category via keywords
     String cat;
     if (trusted) {
       cat = apiCategory.toLowerCase();
     } else {
-      // Check for political keywords
       final isPolitics = _politicsKeywords.any(
         (kw) => combined.contains(kw.toLowerCase()),
       );
       cat = isPolitics ? 'politics' : 'general';
     }
 
+    // Readability — vary it by sentiment/content length hint
+    final wordCount = combined.split(' ').length;
+    final ReadingLevel level;
+    if (wordCount < 20) {
+      level = ReadingLevel.simple;
+    } else if (wordCount > 60) {
+      level = ReadingLevel.advanced;
+    } else {
+      level = ReadingLevel.moderate;
+    }
+
     final avgWords = _avgArticleWords[language] ?? 600;
     final wpm = _langWpm[language] ?? 200;
-    final readSec = ((avgWords / wpm) * 60).clamp(60.0, 1800.0).round();
+    final adjWpm = level == ReadingLevel.simple
+        ? wpm * 1.0
+        : level == ReadingLevel.moderate
+        ? wpm * 0.75
+        : wpm * 0.55;
+    final readSec = ((avgWords / adjWpm) * 60).clamp(60.0, 1800.0).round();
+
+    final (lLabel, lEmoji) = switch (level) {
+      ReadingLevel.simple => ('Simple', '🟢'),
+      ReadingLevel.advanced => ('Advanced', '🔴'),
+      _ => ('Moderate', '🟡'),
+    };
 
     return GroqMLResult(
-      sentiment: const SentimentResult(
-        sentiment: Sentiment.neutral,
-        score: 0.0,
-        label: 'Neutral',
-        emoji: '😐',
-      ),
+      sentiment: sentiment,
       category: CategoryResult(
         category: cat,
         emoji: _categoryEmojis[cat] ?? '📰',
         confidence: 0.5,
       ),
       readability: ReadabilityResult(
-        level: ReadingLevel.moderate,
-        label: 'Moderate',
-        emoji: '🟡',
+        level: level,
+        label: lLabel,
+        emoji: lEmoji,
         readingTimeSeconds: readSec,
-        fleschScore: 50.0,
+        fleschScore: level == ReadingLevel.simple
+            ? 75.0
+            : level == ReadingLevel.moderate
+            ? 45.0
+            : 20.0,
       ),
     );
   }
@@ -395,6 +553,7 @@ Important: Most news is NOT neutral — war is negative, economic growth is posi
 class _QueueEntry {
   final String title, description, apiCategory, language, cacheKey;
   final completer = Completer<GroqMLResult>();
+  int retries = 0;
   _QueueEntry({
     required this.title,
     required this.description,
@@ -402,12 +561,4 @@ class _QueueEntry {
     required this.language,
     required this.cacheKey,
   });
-}
-
-/// Thrown by [GroqMLService._callGroq] on HTTP 429 so that [_drain] can
-/// pause the entire queue for the correct duration rather than each in-flight
-/// request retrying independently (which was the source of the retry cascade).
-class _RateLimitException implements Exception {
-  final int waitMs;
-  const _RateLimitException(this.waitMs);
 }

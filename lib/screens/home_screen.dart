@@ -427,6 +427,10 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  // ───────────────────────────────────────────────────────────────────────
+  // BUILD
+  // ───────────────────────────────────────────────────────────────────────
+
   @override
   Widget build(BuildContext context) {
     final locationProvider = context.watch<LocationProvider>();
@@ -671,7 +675,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
 // ARTICLE CARD
+// ─────────────────────────────────────────────────────────────────────────────
 
 class _ArticleCard extends StatelessWidget {
   final ArticleModel article;

@@ -140,6 +140,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     const Divider(height: 1),
 
                     ...NewsService.supportedCountries.entries.map((entry) {
+                      // ✅ FIXED: Get country name from the map
                       final countryName = entry.value['name'] as String;
                       final current = context
                           .watch<LocationProvider>()
@@ -279,8 +280,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final countryName =
         NewsService.getCountryName(country) ?? country.toUpperCase();
     final languageName =
-        NewsService.getLanguageName(selectedLanguage) ??
-        selectedLanguage.toUpperCase();
+        NewsService.getLanguageName(selectedLanguage) ?? selectedLanguage.toUpperCase();
 
     return Scaffold(
       appBar: AppBar(

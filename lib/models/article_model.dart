@@ -18,11 +18,10 @@ class ArticleModel {
   CategoryResult? _mlCategory;
   ReadabilityResult? _readability;
 
+  // Track whether enrichment has been attempted (even if it failed/fell back)
   bool _enrichAttempted = false;
-  bool _enriching = false;
 
   bool get isEnriched => _enrichAttempted;
-  bool get isEnriching => _enriching;
 
   // Whether LLM actually returned results (vs defaults)
   bool get hasLLMResults =>
@@ -70,12 +69,10 @@ class ArticleModel {
   /// Enqueue this article for LLM enrichment.
   /// [onDone] is called once results are ready — use it to call setState.
   Future<void> enrichAsync({void Function()? onDone}) async {
-    if (_enrichAttempted || _enriching) {
+    if (_enrichAttempted) {
       onDone?.call();
       return;
     }
-
-    _enriching = true;
     try {
       final result = await GroqMLService.analyze(
         title,
@@ -86,12 +83,10 @@ class ArticleModel {
       _sentiment = result.sentiment;
       _mlCategory = result.category;
       _readability = result.readability;
-    } catch (e) {
+    } catch (_) {
       // Leave nulls — getters return sensible defaults
-      print('ArticleModel enrichment error: $e');
     }
     _enrichAttempted = true;
-    _enriching = false;
     onDone?.call();
   }
 
@@ -128,14 +123,8 @@ class ArticleModel {
 
   static String _normaliseApiCategory(String cat) {
     const valid = {
-      'politics',
-      'technology',
-      'health',
-      'business',
-      'sports',
-      'science',
-      'entertainment',
-      'general',
+      'politics', 'technology', 'health', 'business',
+      'sports', 'science', 'entertainment', 'general',
     };
     return valid.contains(cat.toLowerCase()) ? cat.toLowerCase() : 'general';
   }
@@ -156,24 +145,12 @@ class ArticleModel {
 
   static int _defaultReadTime(String lang) {
     const wpm = {
-      'ar': 150,
-      'ur': 150,
-      'hi': 160,
-      'ja': 400,
-      'zh': 260,
-      'zh-hans': 260,
-      'zh-hant': 260,
-      'ko': 200,
-      'th': 120,
+      'ar': 150, 'ur': 150, 'hi': 160, 'ja': 400,
+      'zh': 260, 'zh-hans': 260, 'zh-hant': 260, 'ko': 200, 'th': 120,
     };
     const words = {
-      'ar': 500,
-      'ur': 450,
-      'hi': 480,
-      'ja': 1200,
-      'zh': 800,
-      'zh-hans': 800,
-      'zh-hant': 800,
+      'ar': 500, 'ur': 450, 'hi': 480, 'ja': 1200,
+      'zh': 800, 'zh-hans': 800, 'zh-hant': 800,
     };
     final w = (wpm[lang] ?? 238).toDouble();
     final n = (words[lang] ?? 600).toDouble();

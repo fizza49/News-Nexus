@@ -87,7 +87,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                   decoration: const InputDecoration(hintText: ''),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Required';
+                      return 'Required'; // This shows under the line
                     }
                     return null;
                   },
@@ -96,7 +96,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 const Spacer(),
 
                 ElevatedButton(
-                  onPressed: _handleSubmit,
+                  onPressed: _handleSubmit, // Call our new logic
                   child: const Text('Submit'),
                 ),
                 const SizedBox(height: 16),
